@@ -7,22 +7,61 @@ package db
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	AssignDepartment(ctx context.Context, arg AssignDepartmentParams) (Employee, error)
+	// ─── Existence checks ────────────────────────────────────────────────────────
+	CategoryNameExists(ctx context.Context, name string) (bool, error)
+	CategoryNameExistsExcludingID(ctx context.Context, arg CategoryNameExistsExcludingIDParams) (bool, error)
 	CountEmployees(ctx context.Context) (int64, error)
 	CountEmployeesByStatus(ctx context.Context, status EmployeeStatus) (int64, error)
+	// ─── Create ───────────────────────────────────────────────────────────────────
+	CreateCategory(ctx context.Context, arg CreateCategoryParams) (AssetCategory, error)
+	// ─── Create ───────────────────────────────────────────────────────────────────
+	CreateDepartment(ctx context.Context, arg CreateDepartmentParams) (CreateDepartmentRow, error)
+	// ─── Create ───────────────────────────────────────────────────────────────────
 	CreateEmployee(ctx context.Context, arg CreateEmployeeParams) (Employee, error)
-	DeleteEmployee(ctx context.Context, id uuid.UUID) error
+	// ─── Delete & Count ──────────────────────────────────────────────────────────
+	DeleteEmployee(ctx context.Context, id pgtype.UUID) error
+	DepartmentCodeExists(ctx context.Context, code interface{}) (bool, error)
+	DepartmentCodeExistsExcludingID(ctx context.Context, arg DepartmentCodeExistsExcludingIDParams) (bool, error)
+	// ─── Existence checks (used by service layer for conflict validation) ──────────
+	DepartmentNameExists(ctx context.Context, name string) (bool, error)
+	DepartmentNameExistsExcludingID(ctx context.Context, arg DepartmentNameExistsExcludingIDParams) (bool, error)
+	// ─── Existence checks ────────────────────────────────────────────────────────
+	EmployeeEmailExists(ctx context.Context, email string) (bool, error)
+	EmployeeEmailExistsExcludingID(ctx context.Context, arg EmployeeEmailExistsExcludingIDParams) (bool, error)
+	// ─── Read ─────────────────────────────────────────────────────────────────────
+	GetCategoryByID(ctx context.Context, id pgtype.UUID) (AssetCategory, error)
+	// ─── Read ─────────────────────────────────────────────────────────────────────
+	GetDepartmentByID(ctx context.Context, id pgtype.UUID) (GetDepartmentByIDRow, error)
+	// Returns the employee with role 'department_head' in the given department.
+	GetDepartmentHead(ctx context.Context, departmentID pgtype.UUID) (Employee, error)
 	GetEmployeeByEmail(ctx context.Context, email string) (Employee, error)
-	GetEmployeeByID(ctx context.Context, id uuid.UUID) (Employee, error)
+	// ─── Read ─────────────────────────────────────────────────────────────────────
+	GetEmployeeByID(ctx context.Context, id pgtype.UUID) (Employee, error)
+	ListCategories(ctx context.Context) ([]AssetCategory, error)
+	ListCategoriesByStatus(ctx context.Context, status AssetCategoryStatus) ([]AssetCategory, error)
+	ListDepartments(ctx context.Context) ([]ListDepartmentsRow, error)
+	ListDepartmentsByStatus(ctx context.Context, status DepartmentStatus) ([]ListDepartmentsByStatusRow, error)
 	ListEmployees(ctx context.Context) ([]Employee, error)
 	ListEmployeesByDepartment(ctx context.Context, departmentID pgtype.UUID) ([]Employee, error)
+	ListEmployeesByRole(ctx context.Context, role EmployeeRole) ([]Employee, error)
 	ListEmployeesByStatus(ctx context.Context, status EmployeeStatus) ([]Employee, error)
+	ParentDepartmentExists(ctx context.Context, parentID pgtype.UUID) (bool, error)
+	// ─── Update ───────────────────────────────────────────────────────────────────
+	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (AssetCategory, error)
+	UpdateCategoryStatus(ctx context.Context, arg UpdateCategoryStatusParams) (AssetCategory, error)
+	// ─── Update ───────────────────────────────────────────────────────────────────
+	UpdateDepartment(ctx context.Context, arg UpdateDepartmentParams) (UpdateDepartmentRow, error)
+	UpdateDepartmentStatus(ctx context.Context, arg UpdateDepartmentStatusParams) (UpdateDepartmentStatusRow, error)
+	// ─── Update ───────────────────────────────────────────────────────────────────
 	UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) (Employee, error)
+	UpdateEmployeeRole(ctx context.Context, arg UpdateEmployeeRoleParams) (Employee, error)
 	UpdateEmployeeStatus(ctx context.Context, arg UpdateEmployeeStatusParams) (Employee, error)
+	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error
 }
 
 var _ Querier = (*Queries)(nil)

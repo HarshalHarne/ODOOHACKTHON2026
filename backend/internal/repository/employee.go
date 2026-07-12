@@ -29,7 +29,7 @@ func (r *EmployeeRepository) Create(ctx context.Context, arg db.CreateEmployeePa
 }
 
 func (r *EmployeeRepository) GetByID(ctx context.Context, id uuid.UUID) (db.Employee, error) {
-	return r.q.GetEmployeeByID(ctx, id)
+	return r.q.GetEmployeeByID(ctx, pgtype.UUID{Bytes: id, Valid: true})
 }
 
 func (r *EmployeeRepository) GetByEmail(ctx context.Context, email string) (db.Employee, error) {
@@ -59,7 +59,7 @@ func (r *EmployeeRepository) UpdateStatus(ctx context.Context, arg db.UpdateEmpl
 }
 
 func (r *EmployeeRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return r.q.DeleteEmployee(ctx, id)
+	return r.q.DeleteEmployee(ctx, pgtype.UUID{Bytes: id, Valid: true})
 }
 
 func (r *EmployeeRepository) Count(ctx context.Context) (int64, error) {

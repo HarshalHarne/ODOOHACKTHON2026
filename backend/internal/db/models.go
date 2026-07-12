@@ -8,119 +8,161 @@ import (
 	"database/sql/driver"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AssetCondition string
+type AssetCategoryStatus string
 
 const (
-	AssetConditionNew     AssetCondition = "new"
-	AssetConditionGood    AssetCondition = "good"
-	AssetConditionFair    AssetCondition = "fair"
-	AssetConditionPoor    AssetCondition = "poor"
-	AssetConditionDamaged AssetCondition = "damaged"
+	AssetCategoryStatusActive   AssetCategoryStatus = "active"
+	AssetCategoryStatusInactive AssetCategoryStatus = "inactive"
 )
 
-func (e *AssetCondition) Scan(src interface{}) error {
+func (e *AssetCategoryStatus) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = AssetCondition(s)
+		*e = AssetCategoryStatus(s)
 	case string:
-		*e = AssetCondition(s)
+		*e = AssetCategoryStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for AssetCondition: %T", src)
+		return fmt.Errorf("unsupported scan type for AssetCategoryStatus: %T", src)
 	}
 	return nil
 }
 
-type NullAssetCondition struct {
-	AssetCondition AssetCondition `json:"asset_condition"`
-	Valid          bool           `json:"valid"` // Valid is true if AssetCondition is not NULL
+type NullAssetCategoryStatus struct {
+	AssetCategoryStatus AssetCategoryStatus `json:"asset_category_status"`
+	Valid               bool                `json:"valid"` // Valid is true if AssetCategoryStatus is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullAssetCondition) Scan(value interface{}) error {
+func (ns *NullAssetCategoryStatus) Scan(value interface{}) error {
 	if value == nil {
-		ns.AssetCondition, ns.Valid = "", false
+		ns.AssetCategoryStatus, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.AssetCondition.Scan(value)
+	return ns.AssetCategoryStatus.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullAssetCondition) Value() (driver.Value, error) {
+func (ns NullAssetCategoryStatus) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.AssetCondition), nil
+	return string(ns.AssetCategoryStatus), nil
 }
 
-func (e AssetCondition) Valid() bool {
+func (e AssetCategoryStatus) Valid() bool {
 	switch e {
-	case AssetConditionNew,
-		AssetConditionGood,
-		AssetConditionFair,
-		AssetConditionPoor,
-		AssetConditionDamaged:
+	case AssetCategoryStatusActive,
+		AssetCategoryStatusInactive:
 		return true
 	}
 	return false
 }
 
-type AssetStatus string
+type DepartmentStatus string
 
 const (
-	AssetStatusAvailable        AssetStatus = "available"
-	AssetStatusAssigned         AssetStatus = "assigned"
-	AssetStatusUnderMaintenance AssetStatus = "under_maintenance"
-	AssetStatusRetired          AssetStatus = "retired"
-	AssetStatusLost             AssetStatus = "lost"
+	DepartmentStatusActive   DepartmentStatus = "active"
+	DepartmentStatusInactive DepartmentStatus = "inactive"
 )
 
-func (e *AssetStatus) Scan(src interface{}) error {
+func (e *DepartmentStatus) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = AssetStatus(s)
+		*e = DepartmentStatus(s)
 	case string:
-		*e = AssetStatus(s)
+		*e = DepartmentStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for AssetStatus: %T", src)
+		return fmt.Errorf("unsupported scan type for DepartmentStatus: %T", src)
 	}
 	return nil
 }
 
-type NullAssetStatus struct {
-	AssetStatus AssetStatus `json:"asset_status"`
-	Valid       bool        `json:"valid"` // Valid is true if AssetStatus is not NULL
+type NullDepartmentStatus struct {
+	DepartmentStatus DepartmentStatus `json:"department_status"`
+	Valid            bool             `json:"valid"` // Valid is true if DepartmentStatus is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullAssetStatus) Scan(value interface{}) error {
+func (ns *NullDepartmentStatus) Scan(value interface{}) error {
 	if value == nil {
-		ns.AssetStatus, ns.Valid = "", false
+		ns.DepartmentStatus, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.AssetStatus.Scan(value)
+	return ns.DepartmentStatus.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullAssetStatus) Value() (driver.Value, error) {
+func (ns NullDepartmentStatus) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.AssetStatus), nil
+	return string(ns.DepartmentStatus), nil
 }
 
-func (e AssetStatus) Valid() bool {
+func (e DepartmentStatus) Valid() bool {
 	switch e {
-	case AssetStatusAvailable,
-		AssetStatusAssigned,
-		AssetStatusUnderMaintenance,
-		AssetStatusRetired,
-		AssetStatusLost:
+	case DepartmentStatusActive,
+		DepartmentStatusInactive:
+		return true
+	}
+	return false
+}
+
+type EmployeeRole string
+
+const (
+	EmployeeRoleAdmin          EmployeeRole = "admin"
+	EmployeeRoleAssetManager   EmployeeRole = "asset_manager"
+	EmployeeRoleDepartmentHead EmployeeRole = "department_head"
+	EmployeeRoleEmployee       EmployeeRole = "employee"
+)
+
+func (e *EmployeeRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EmployeeRole(s)
+	case string:
+		*e = EmployeeRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EmployeeRole: %T", src)
+	}
+	return nil
+}
+
+type NullEmployeeRole struct {
+	EmployeeRole EmployeeRole `json:"employee_role"`
+	Valid        bool         `json:"valid"` // Valid is true if EmployeeRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEmployeeRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.EmployeeRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EmployeeRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEmployeeRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EmployeeRole), nil
+}
+
+func (e EmployeeRole) Valid() bool {
+	switch e {
+	case EmployeeRoleAdmin,
+		EmployeeRoleAssetManager,
+		EmployeeRoleDepartmentHead,
+		EmployeeRoleEmployee:
 		return true
 	}
 	return false
@@ -129,10 +171,8 @@ func (e AssetStatus) Valid() bool {
 type EmployeeStatus string
 
 const (
-	EmployeeStatusActive     EmployeeStatus = "active"
-	EmployeeStatusInactive   EmployeeStatus = "inactive"
-	EmployeeStatusOnLeave    EmployeeStatus = "on_leave"
-	EmployeeStatusTerminated EmployeeStatus = "terminated"
+	EmployeeStatusActive   EmployeeStatus = "active"
+	EmployeeStatusInactive EmployeeStatus = "inactive"
 )
 
 func (e *EmployeeStatus) Scan(src interface{}) error {
@@ -173,120 +213,41 @@ func (ns NullEmployeeStatus) Value() (driver.Value, error) {
 func (e EmployeeStatus) Valid() bool {
 	switch e {
 	case EmployeeStatusActive,
-		EmployeeStatusInactive,
-		EmployeeStatusOnLeave,
-		EmployeeStatusTerminated:
+		EmployeeStatusInactive:
 		return true
 	}
 	return false
 }
 
-type UserRole string
-
-const (
-	UserRoleAdmin   UserRole = "admin"
-	UserRoleManager UserRole = "manager"
-	UserRoleViewer  UserRole = "viewer"
-)
-
-func (e *UserRole) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = UserRole(s)
-	case string:
-		*e = UserRole(s)
-	default:
-		return fmt.Errorf("unsupported scan type for UserRole: %T", src)
-	}
-	return nil
-}
-
-type NullUserRole struct {
-	UserRole UserRole `json:"user_role"`
-	Valid    bool     `json:"valid"` // Valid is true if UserRole is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullUserRole) Scan(value interface{}) error {
-	if value == nil {
-		ns.UserRole, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.UserRole.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullUserRole) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.UserRole), nil
-}
-
-func (e UserRole) Valid() bool {
-	switch e {
-	case UserRoleAdmin,
-		UserRoleManager,
-		UserRoleViewer:
-		return true
-	}
-	return false
-}
-
-type Asset struct {
-	ID           uuid.UUID          `json:"id"`
-	Name         string             `json:"name"`
-	AssetTag     string             `json:"asset_tag"`
-	SerialNumber *string            `json:"serial_number"`
-	CategoryID   pgtype.UUID        `json:"category_id"`
-	DepartmentID pgtype.UUID        `json:"department_id"`
-	AssignedTo   pgtype.UUID        `json:"assigned_to"`
-	Status       AssetStatus        `json:"status"`
-	Condition    AssetCondition     `json:"condition"`
-	PurchaseDate pgtype.Date        `json:"purchase_date"`
-	PurchaseCost pgtype.Numeric     `json:"purchase_cost"`
-	Notes        *string            `json:"notes"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-}
-
-type Category struct {
-	ID        uuid.UUID          `json:"id"`
-	Name      string             `json:"name"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+type AssetCategory struct {
+	ID            pgtype.UUID         `json:"id"`
+	Name          string              `json:"name"`
+	Description   *string             `json:"description"`
+	DynamicSchema []byte              `json:"dynamic_schema"`
+	Status        AssetCategoryStatus `json:"status"`
+	CreatedAt     pgtype.Timestamptz  `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz  `json:"updated_at"`
 }
 
 type Department struct {
-	ID        uuid.UUID          `json:"id"`
+	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`
+	Code      string             `json:"code"`
+	ParentID  pgtype.UUID        `json:"parent_id"`
+	Status    DepartmentStatus   `json:"status"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Employee struct {
-	ID           uuid.UUID          `json:"id"`
+	ID           pgtype.UUID        `json:"id"`
 	FirstName    string             `json:"first_name"`
 	LastName     string             `json:"last_name"`
 	Email        string             `json:"email"`
-	Phone        *string            `json:"phone"`
-	DepartmentID pgtype.UUID        `json:"department_id"`
-	JobTitle     *string            `json:"job_title"`
-	Status       EmployeeStatus     `json:"status"`
-	HireDate     pgtype.Date        `json:"hire_date"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-}
-
-type User struct {
-	ID           uuid.UUID          `json:"id"`
-	Email        string             `json:"email"`
 	PasswordHash string             `json:"password_hash"`
-	Role         UserRole           `json:"role"`
-	EmployeeID   pgtype.UUID        `json:"employee_id"`
-	IsActive     bool               `json:"is_active"`
-	LastLoginAt  pgtype.Timestamptz `json:"last_login_at"`
+	DepartmentID pgtype.UUID        `json:"department_id"`
+	Role         EmployeeRole       `json:"role"`
+	Status       EmployeeStatus     `json:"status"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }

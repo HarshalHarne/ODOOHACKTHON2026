@@ -20,14 +20,30 @@ type DepartmentServicer interface {
 	UpdateDepartmentStatus(ctx context.Context, id string, req UpdateDepartmentStatusRequest) (Department, error)
 }
 
-// DepartmentService implements DepartmentServicer using a db.Querier.
+// DepartmentQuerier is a narrow interface containing only the DB methods
+// required by DepartmentService. *db.Queries satisfies this interface, and
+// test fakes only need to implement these methods (not the full db.Querier).
+type DepartmentQuerier interface {
+	CreateDepartment(ctx context.Context, arg db.CreateDepartmentParams) (db.CreateDepartmentRow, error)
+	DepartmentCodeExists(ctx context.Context, code string) (bool, error)
+	DepartmentCodeExistsExcludingID(ctx context.Context, arg db.DepartmentCodeExistsExcludingIDParams) (bool, error)
+	DepartmentNameExists(ctx context.Context, name string) (bool, error)
+	DepartmentNameExistsExcludingID(ctx context.Context, arg db.DepartmentNameExistsExcludingIDParams) (bool, error)
+	GetDepartmentByID(ctx context.Context, id pgtype.UUID) (db.GetDepartmentByIDRow, error)
+	ListDepartments(ctx context.Context) ([]db.ListDepartmentsRow, error)
+	ParentDepartmentExists(ctx context.Context, parentID pgtype.UUID) (bool, error)
+	UpdateDepartment(ctx context.Context, arg db.UpdateDepartmentParams) (db.UpdateDepartmentRow, error)
+	UpdateDepartmentStatus(ctx context.Context, arg db.UpdateDepartmentStatusParams) (db.UpdateDepartmentStatusRow, error)
+}
+
+// DepartmentService implements DepartmentServicer using a DepartmentQuerier.
 type DepartmentService struct {
-	store db.Querier
+	store DepartmentQuerier
 }
 
 // NewDepartmentService constructs a DepartmentService.
 // store is typically *db.Queries backed by pgxpool; in tests it is a mock.
-func NewDepartmentService(store db.Querier) *DepartmentService {
+func NewDepartmentService(store DepartmentQuerier) *DepartmentService {
 	return &DepartmentService{store: store}
 }
 
@@ -223,7 +239,7 @@ func (s *DepartmentService) UpdateDepartmentStatus(ctx context.Context, id strin
 	}
 
 	row, err := s.store.UpdateDepartmentStatus(ctx, db.UpdateDepartmentStatusParams{
-		Status: db.RecordStatus(req.Status),
+		Status: db.DepartmentStatus(req.Status),
 		ID:     uid,
 	})
 	if err != nil {
@@ -248,8 +264,8 @@ func createRowToDepartment(r db.CreateDepartmentRow) Department {
 		s := uuidToString(r.ParentID)
 		d.ParentID = &s
 	}
-	if r.ParentName.Valid {
-		d.ParentName = &r.ParentName.String
+	if r.ParentName != nil {
+		d.ParentName = r.ParentName
 	}
 	return d
 }
@@ -267,8 +283,8 @@ func getRowToDepartment(r db.GetDepartmentByIDRow) Department {
 		s := uuidToString(r.ParentID)
 		d.ParentID = &s
 	}
-	if r.ParentName.Valid {
-		d.ParentName = &r.ParentName.String
+	if r.ParentName != nil {
+		d.ParentName = r.ParentName
 	}
 	return d
 }
@@ -286,8 +302,8 @@ func listRowToDepartment(r db.ListDepartmentsRow) Department {
 		s := uuidToString(r.ParentID)
 		d.ParentID = &s
 	}
-	if r.ParentName.Valid {
-		d.ParentName = &r.ParentName.String
+	if r.ParentName != nil {
+		d.ParentName = r.ParentName
 	}
 	return d
 }
@@ -305,8 +321,8 @@ func updateRowToDepartment(r db.UpdateDepartmentRow) Department {
 		s := uuidToString(r.ParentID)
 		d.ParentID = &s
 	}
-	if r.ParentName.Valid {
-		d.ParentName = &r.ParentName.String
+	if r.ParentName != nil {
+		d.ParentName = r.ParentName
 	}
 	return d
 }
@@ -324,8 +340,8 @@ func updateStatusRowToDepartment(r db.UpdateDepartmentStatusRow) Department {
 		s := uuidToString(r.ParentID)
 		d.ParentID = &s
 	}
-	if r.ParentName.Valid {
-		d.ParentName = &r.ParentName.String
+	if r.ParentName != nil {
+		d.ParentName = r.ParentName
 	}
 	return d
 }

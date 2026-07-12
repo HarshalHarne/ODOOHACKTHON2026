@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/HarshalHarne/assetflow/internal/api"
 	"github.com/HarshalHarne/assetflow/internal/core"
+	"github.com/gofiber/fiber/v3"
 )
 
 // ── Fake service ──────────────────────────────────────────────────────────────
@@ -78,26 +78,26 @@ func userPrincipal() api.Principal {
 	return api.Principal{UserID: "u2", Role: api.RoleUser, Authenticated: true}
 }
 
-// newTestRouter creates a router with an optional principal injector middleware
-// placed BEFORE RequireAdmin, simulating what a real auth middleware would do.
-func newTestRouter(svc core.DepartmentServicer, p *api.Principal) http.Handler {
+// newTestApp creates a fiber app with an optional principal injector middleware
+// placed BEFORE the routes, simulating what a real auth middleware would do.
+func newTestApp(svc core.DepartmentServicer, p *api.Principal) *fiber.App {
+	app := fiber.New()
+
+	if p != nil {
+		principal := *p
+		app.Use(func(c fiber.Ctx) error {
+			api.SetPrincipal(c, principal)
+			return c.Next()
+		})
+	}
+
 	h := api.NewDepartmentHandler(svc)
 	deps := api.RouterDeps{
 		DepartmentHandler: h,
-		RequestTimeout:    30 * time.Second,
 	}
-	router := api.NewRouter(deps)
+	api.RegisterRoutes(app, deps)
 
-	if p == nil {
-		return router
-	}
-
-	// Inject the principal before the request reaches the router.
-	principal := *p
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := api.SetPrincipal(r.Context(), principal)
-		router.ServeHTTP(w, r.WithContext(ctx))
-	})
+	return app
 }
 
 func jsonBody(t *testing.T, v any) *bytes.Buffer {
@@ -109,7 +109,7 @@ func jsonBody(t *testing.T, v any) *bytes.Buffer {
 	return bytes.NewBuffer(b)
 }
 
-func do(t *testing.T, router http.Handler, method, path string, body *bytes.Buffer) *httptest.ResponseRecorder {
+func do(t *testing.T, app *fiber.App, method, path string, body *bytes.Buffer) *http.Response {
 	t.Helper()
 	var req *http.Request
 	var err error
@@ -124,27 +124,30 @@ func do(t *testing.T, router http.Handler, method, path string, body *bytes.Buff
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
+	
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	return resp
 }
 
 // ── Auth tests ────────────────────────────────────────────────────────────────
 
 func TestHandler_Unauthenticated_Returns401(t *testing.T) {
-	router := newTestRouter(&fakeDeptService{}, nil) // no principal
-	rr := do(t, router, http.MethodGet, "/api/v1/departments", nil)
-	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rr.Code)
+	app := newTestApp(&fakeDeptService{}, nil) // no principal
+	resp := do(t, app, http.MethodGet, "/api/v1/departments", nil)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp.StatusCode)
 	}
 }
 
 func TestHandler_NonAdmin_Returns403(t *testing.T) {
 	p := userPrincipal()
-	router := newTestRouter(&fakeDeptService{}, &p)
-	rr := do(t, router, http.MethodGet, "/api/v1/departments", nil)
-	if rr.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", rr.Code)
+	app := newTestApp(&fakeDeptService{}, &p)
+	resp := do(t, app, http.MethodGet, "/api/v1/departments", nil)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", resp.StatusCode)
 	}
 }
 
@@ -157,20 +160,20 @@ func TestHandler_AdminCanCreate_Returns201(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
+	app := newTestApp(svc, &p)
 	body := jsonBody(t, map[string]any{"name": "Engineering", "code": "ENG"})
-	rr := do(t, router, http.MethodPost, "/api/v1/departments", body)
-	if rr.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d: %s", rr.Code, rr.Body)
+	resp := do(t, app, http.MethodPost, "/api/v1/departments", body)
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("expected 201, got %d", resp.StatusCode)
 	}
 }
 
 func TestHandler_MalformedJSON_Returns400(t *testing.T) {
 	p := adminPrincipal()
-	router := newTestRouter(&fakeDeptService{}, &p)
-	rr := do(t, router, http.MethodPost, "/api/v1/departments", bytes.NewBufferString("{bad json"))
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rr.Code)
+	app := newTestApp(&fakeDeptService{}, &p)
+	resp := do(t, app, http.MethodPost, "/api/v1/departments", bytes.NewBufferString("{bad json"))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -181,11 +184,11 @@ func TestHandler_DuplicateName_Returns409(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
+	app := newTestApp(svc, &p)
 	body := jsonBody(t, map[string]any{"name": "Engineering", "code": "ENG"})
-	rr := do(t, router, http.MethodPost, "/api/v1/departments", body)
-	if rr.Code != http.StatusConflict {
-		t.Errorf("expected 409, got %d", rr.Code)
+	resp := do(t, app, http.MethodPost, "/api/v1/departments", body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("expected 409, got %d", resp.StatusCode)
 	}
 }
 
@@ -194,21 +197,14 @@ func TestHandler_DuplicateName_Returns409(t *testing.T) {
 func TestHandler_InvalidUUID_Returns400(t *testing.T) {
 	svc := &fakeDeptService{
 		getFn: func(_ context.Context, id string) (core.Department, error) {
-			return core.Department{}, errors.New("invalid UUID")
+			return core.Department{}, errors.Join(core.ErrInvalidInput, errors.New("bad uuid"))
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
-	rr := do(t, router, http.MethodGet, "/api/v1/departments/not-a-uuid", nil)
-	// The service maps this to ErrInvalidInput → 400, but let's also accept
-	// that the service itself returns 500 for unknown errors. Let's wire
-	// the fake to return ErrInvalidInput.
-	svc.getFn = func(_ context.Context, _ string) (core.Department, error) {
-		return core.Department{}, errors.Join(core.ErrInvalidInput, errors.New("bad uuid"))
-	}
-	rr = do(t, router, http.MethodGet, "/api/v1/departments/not-a-uuid", nil)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d: %s", rr.Code, rr.Body)
+	app := newTestApp(svc, &p)
+	resp := do(t, app, http.MethodGet, "/api/v1/departments/not-a-uuid", nil)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -219,10 +215,10 @@ func TestHandler_MissingDepartment_Returns404(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
-	rr := do(t, router, http.MethodGet, "/api/v1/departments/"+testUUID, nil)
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rr.Code)
+	app := newTestApp(svc, &p)
+	resp := do(t, app, http.MethodGet, "/api/v1/departments/"+testUUID, nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
 	}
 }
 
@@ -235,10 +231,10 @@ func TestHandler_List_Returns200(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
-	rr := do(t, router, http.MethodGet, "/api/v1/departments", nil)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
+	app := newTestApp(svc, &p)
+	resp := do(t, app, http.MethodGet, "/api/v1/departments", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 }
 
@@ -249,18 +245,18 @@ func TestHandler_EmptyList_ReturnsArray(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
-	rr := do(t, router, http.MethodGet, "/api/v1/departments", nil)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
+	app := newTestApp(svc, &p)
+	resp := do(t, app, http.MethodGet, "/api/v1/departments", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 
-	var resp map[string]json.RawMessage
-	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+	var respBody map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
 		t.Fatalf("json decode: %v", err)
 	}
 	var items []core.Department
-	if err := json.Unmarshal(resp["data"], &items); err != nil {
+	if err := json.Unmarshal(respBody["data"], &items); err != nil {
 		t.Fatalf("data decode: %v", err)
 	}
 	if items == nil || len(items) != 0 {
@@ -277,11 +273,11 @@ func TestHandler_Update_Returns200(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
+	app := newTestApp(svc, &p)
 	body := jsonBody(t, map[string]any{"name": "Software"})
-	rr := do(t, router, http.MethodPatch, "/api/v1/departments/"+testUUID, body)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body)
+	resp := do(t, app, http.MethodPatch, "/api/v1/departments/"+testUUID, body)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 }
 
@@ -294,12 +290,11 @@ func TestHandler_Update_ExplicitNullRemovesParent(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
-	// Explicit null parentId in JSON
+	app := newTestApp(svc, &p)
 	body := bytes.NewBufferString(`{"parentId":null}`)
-	rr := do(t, router, http.MethodPatch, "/api/v1/departments/"+testUUID, body)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body)
+	resp := do(t, app, http.MethodPatch, "/api/v1/departments/"+testUUID, body)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 	if !capturedReq.ParentID.Present {
 		t.Error("expected ParentID.Present=true for explicit null")
@@ -320,11 +315,11 @@ func TestHandler_StatusUpdate_Returns200(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
+	app := newTestApp(svc, &p)
 	body := jsonBody(t, map[string]string{"status": "inactive"})
-	rr := do(t, router, http.MethodPatch, "/api/v1/departments/"+testUUID+"/status", body)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body)
+	resp := do(t, app, http.MethodPatch, "/api/v1/departments/"+testUUID+"/status", body)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 }
 
@@ -335,10 +330,10 @@ func TestHandler_InvalidStatus_Returns400(t *testing.T) {
 		},
 	}
 	p := adminPrincipal()
-	router := newTestRouter(svc, &p)
+	app := newTestApp(svc, &p)
 	body := jsonBody(t, map[string]string{"status": "deleted"})
-	rr := do(t, router, http.MethodPatch, "/api/v1/departments/"+testUUID+"/status", body)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rr.Code)
+	resp := do(t, app, http.MethodPatch, "/api/v1/departments/"+testUUID+"/status", body)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
 	}
 }

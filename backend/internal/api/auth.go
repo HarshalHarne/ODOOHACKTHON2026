@@ -14,16 +14,17 @@
 package api
 
 import (
-	"context"
-	"net/http"
+	"github.com/gofiber/fiber/v3"
 )
 
 // Role identifies a user's role within the application.
 type Role string
 
 const (
-	RoleAdmin Role = "admin"
-	RoleUser  Role = "user"
+	RoleAdmin          Role = "admin"
+	RoleAssetManager   Role = "asset_manager"
+	RoleDepartmentHead Role = "department_head"
+	RoleEmployee       Role = "employee"
 )
 
 // Principal represents an authenticated caller.
@@ -34,40 +35,32 @@ type Principal struct {
 	Authenticated bool
 }
 
-type contextKey string
-
-const principalKey contextKey = "principal"
-
-// SetPrincipal stores a Principal in the context.
+// SetPrincipal stores a Principal in the fiber Locals.
 // Call this from auth middleware or from tests.
-func SetPrincipal(ctx context.Context, p Principal) context.Context {
-	return context.WithValue(ctx, principalKey, p)
+func SetPrincipal(c fiber.Ctx, p Principal) {
+	c.Locals("principal", p)
 }
 
-// GetPrincipal retrieves the Principal from the context.
+// GetPrincipal retrieves the Principal from the fiber Locals.
 // Returns the Principal and true if present; zero value and false otherwise.
-func GetPrincipal(ctx context.Context) (Principal, bool) {
-	p, ok := ctx.Value(principalKey).(Principal)
+func GetPrincipal(c fiber.Ctx) (Principal, bool) {
+	p, ok := c.Locals("principal").(Principal)
 	return p, ok
 }
 
-// RequireAdmin is a chi middleware that enforces Admin-only access.
+// RequireAdmin is a fiber middleware that enforces Admin-only access.
 //
 //   - No principal in context           → 401 Unauthorized
 //   - Unauthenticated principal         → 401 Unauthorized
 //   - Authenticated principal, non-admin → 403 Forbidden
 //   - Authenticated Admin               → continues
-func RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, ok := GetPrincipal(r.Context())
-		if !ok || !p.Authenticated {
-			writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication is required.")
-			return
-		}
-		if p.Role != RoleAdmin {
-			writeError(w, http.StatusForbidden, "forbidden", "Admin role is required.")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func RequireAdmin(c fiber.Ctx) error {
+	p, ok := GetPrincipal(c)
+	if !ok || !p.Authenticated {
+		return writeError(c, fiber.StatusUnauthorized, "unauthorized", "Authentication is required.")
+	}
+	if p.Role != RoleAdmin {
+		return writeError(c, fiber.StatusForbidden, "forbidden", "Admin role is required.")
+	}
+	return c.Next()
 }

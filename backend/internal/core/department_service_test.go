@@ -107,7 +107,7 @@ func makeCreateRow(name, code string) db.CreateDepartmentRow {
 		ID:        mustUUID(testUUID),
 		Name:      name,
 		Code:      code,
-		Status:    db.RecordStatusActive,
+		Status:    db.DepartmentStatusActive,
 		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
@@ -118,7 +118,7 @@ func makeGetRow(id, name, code string) db.GetDepartmentByIDRow {
 		ID:        mustUUID(id),
 		Name:      name,
 		Code:      code,
-		Status:    db.RecordStatusActive,
+		Status:    db.DepartmentStatusActive,
 		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
@@ -129,13 +129,13 @@ func makeUpdateRow(name, code string) db.UpdateDepartmentRow {
 		ID:        mustUUID(testUUID),
 		Name:      name,
 		Code:      code,
-		Status:    db.RecordStatusActive,
+		Status:    db.DepartmentStatusActive,
 		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 }
 
-func makeUpdateStatusRow(status db.RecordStatus) db.UpdateDepartmentStatusRow {
+func makeUpdateStatusRow(status db.DepartmentStatus) db.UpdateDepartmentStatusRow {
 	return db.UpdateDepartmentStatusRow{
 		ID:        mustUUID(testUUID),
 		Name:      "Engineering",
@@ -286,7 +286,7 @@ func TestGetDepartment_NotFound(t *testing.T) {
 
 func TestListDepartments_Results(t *testing.T) {
 	rows := []db.ListDepartmentsRow{
-		{ID: mustUUID(testUUID), Name: "Engineering", Code: "ENG", Status: db.RecordStatusActive,
+		{ID: mustUUID(testUUID), Name: "Engineering", Code: "ENG", Status: db.DepartmentStatusActive,
 			CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 	}

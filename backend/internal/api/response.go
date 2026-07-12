@@ -1,9 +1,7 @@
 package api
 
 import (
-	"encoding/json"
-	"log/slog"
-	"net/http"
+	"github.com/gofiber/fiber/v3"
 )
 
 // successResponse wraps any data value in {"data": ...}.
@@ -22,22 +20,12 @@ type errorResponse struct {
 	Error errorDetail `json:"error"`
 }
 
-// writeJSON encodes v as JSON and writes it with the given status code.
-// Content-Type is set to application/json.
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Error("response encode error", "err", err)
-	}
-}
-
 // writeData wraps v in {"data": v} and writes it.
-func writeData(w http.ResponseWriter, status int, v any) {
-	writeJSON(w, status, successResponse{Data: v})
+func writeData(c fiber.Ctx, status int, v any) error {
+	return c.Status(status).JSON(successResponse{Data: v})
 }
 
 // writeError writes {"error": {"code": code, "message": msg}}.
-func writeError(w http.ResponseWriter, status int, code, msg string) {
-	writeJSON(w, status, errorResponse{Error: errorDetail{Code: code, Message: msg}})
+func writeError(c fiber.Ctx, status int, code, msg string) error {
+	return c.Status(status).JSON(errorResponse{Error: errorDetail{Code: code, Message: msg}})
 }

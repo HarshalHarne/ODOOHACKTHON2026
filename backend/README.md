@@ -2,240 +2,100 @@
 
 Go REST API for AssetFlow, built with chi/v5, pgx/v5, Goose, and sqlc.
 
----
+## Project Status
+
+This repository contains the backend foundation for AssetFlow. The implemented components include the initial database schema, Department module, authentication foundation, SQL query generation with sqlc, and REST API scaffolding. Additional ERP modules (Assets, Allocation, Booking, Maintenance, Audit, and Reporting) are planned but are not yet implemented.
 
 ## Architecture
 
-```
-cmd/
-  api/main.go              — entry point: loads config, wires DI, starts server
-  dbdoctor/main.go         — temporary CLI for database inspection (see below)
+The project is structured into specific domains and functional areas:
 
-internal/
-  config/config.go         — environment-based configuration loader
-  database/pool.go         — pgxpool initialization
-  db/                      — sqlc-generated code (DO NOT edit manually)
-  core/
-    department_types.go    — domain types, request/response models, OptionalNullableUUID
-    department_errors.go   — stable domain error sentinels
-    pg_errors.go           — PostgreSQL SQLSTATE → domain error mapping
-    department_service.go  — DepartmentService + DepartmentServicer interface
-    department_service_test.go
-  api/
-    auth.go                — Principal type, SetPrincipal, GetPrincipal, RequireAdmin
-    response.go            — writeData / writeError JSON helpers
-    department_handler.go  — HTTP handlers (thin; delegate to service)
-    router.go              — chi router construction
-    department_handler_test.go
+- `cmd/api/`: Application entry point. Loads configuration, wires dependencies, and starts the server.
+- `cmd/dbdoctor/`: CLI tool for database inspection.
+- `internal/api/`: HTTP layer containing the Chi router, middleware, and request handlers.
+- `internal/config/`: Environment-based configuration loader.
+- `internal/core/`: Domain types, business logic, and services (e.g., `DepartmentService`).
+- `internal/database/`: PostgreSQL connection pool management using pgx.
+- `internal/db/`: Auto-generated database access code by sqlc.
+- `sql/migrations/`: Database schema definitions managed by Goose.
+- `sql/queries/`: SQL queries used by sqlc to generate access methods.
 
-sql/
-  migrations/              — Goose SQL migrations
-  queries/                 — sqlc SQL query files
-```
+## Database
 
----
+The database is PostgreSQL, managed via Goose migrations. 
 
-## Department Endpoints
+### Current Schema
+Currently, only the **Departments** domain is implemented. 
+- **`departments`**: Stores organization departments with a hierarchical structure (self-referencing `parent_id`). It enforces rules against circular dependencies using database triggers.
+- **Enums**: `record_status` (values: `active`, `inactive`).
 
-All routes require **Admin** authorization.
+## Database Operations (SQLC)
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| POST | `/api/v1/departments` | Create department | 201 |
-| GET | `/api/v1/departments` | List all departments | 200 |
-| GET | `/api/v1/departments/{id}` | Get one department | 200 |
-| PATCH | `/api/v1/departments/{id}` | Update name/code/parent | 200 |
-| PATCH | `/api/v1/departments/{id}/status` | Activate or deactivate | 200 |
+The following database operations are currently supported by the generated `internal/db` code:
+- **CreateDepartment**: Inserts a new department.
+- **GetDepartmentByID**: Fetches a single department and its parent's name.
+- **ListDepartments**: Retrieves all departments ordered by name.
+- **UpdateDepartment**: Modifies a department's name, code, or parent.
+- **UpdateDepartmentStatus**: Modifies only the `status` of a department.
+- Existence checks (`DepartmentNameExists`, `DepartmentCodeExists`, `ParentDepartmentExists`, etc.)
 
-### Create
+## API Endpoints
 
-```
-POST /api/v1/departments
-Content-Type: application/json
+### Public Routes
+- `GET /health`: Health check endpoint.
 
-{
-  "name": "Engineering",
-  "code": "ENG",
-  "parentId": null
-}
-```
+### Admin Routes
+All routes below are prefixed with `/api/v1` and require an Admin principal.
 
-Response `201`:
-```json
-{
-  "data": {
-    "id": "uuid",
-    "name": "Engineering",
-    "code": "ENG",
-    "parentId": null,
-    "parentName": null,
-    "status": "active",
-    "createdAt": "2026-07-12T10:30:00Z",
-    "updatedAt": "2026-07-12T10:30:00Z"
-  }
-}
-```
+- `GET /departments`: List all departments.
+- `POST /departments`: Create a new department.
+- `GET /departments/{id}`: Get a specific department by ID.
+- `PATCH /departments/{id}`: Update department details.
+- `PATCH /departments/{id}/status`: Update department status (active/inactive).
 
-### Update (PATCH)
+## Authentication & Authorization
 
-All fields are optional. `parentId` distinguishes three states:
-- **omitted** → preserve current parent
-- **`null`** → remove current parent
-- **UUID string** → assign new parent
+Authorization is handled via a custom `RequireAdmin` middleware on the `/api/v1/*` routes.
+- The middleware expects a `Principal` object in the request context with a role of `admin`.
+- Currently, there is no active JWT validation or login endpoint. The middleware acts as an authorization seam for future integration.
 
-```json
-{ "name": "Software Engineering", "parentId": null }
-```
+## Configuration
 
-### Status
+The application is configured using the following environment variables:
 
-```
-PATCH /api/v1/departments/{id}/status
+- `DATABASE_URL` *(Required)*: Connection string for PostgreSQL.
+- `HTTP_PORT`: Port for the API server (default: `8080`).
+- `DATABASE_MIN_CONNS`: Minimum database connections (default: `2`).
+- `DATABASE_MAX_CONNS`: Maximum database connections (default: `10`).
+- `DATABASE_CONNECT_TIMEOUT`: Timeout for database connection (default: `10s`).
+- `HTTP_REQUEST_TIMEOUT`: Global HTTP request timeout (default: `30s`).
+- `HTTP_SHUTDOWN_TIMEOUT`: Graceful shutdown timeout (default: `15s`).
 
-{ "status": "inactive" }
-```
+## Running the Project
 
-### Error format
+To build and run the backend locally, use the following commands:
 
-```json
-{
-  "error": {
-    "code": "department_name_conflict",
-    "message": "A department with this name already exists."
-  }
-}
-```
+Ensure to update the `.env` file first.
 
-Error codes: `unauthorized`, `forbidden`, `invalid_input`, `invalid_request`,
-`department_not_found`, `parent_department_not_found`, `department_name_conflict`,
-`department_code_conflict`, `invalid_department_hierarchy`, `invalid_status`,
-`internal_error`.
-
----
-
-## Authorization Seam
-
-Department routes are Admin-only. The `RequireAdmin` middleware in
-`internal/api/auth.go` reads a `Principal` from the request context:
-
-- No principal → **401**
-- Unauthenticated principal → **401**
-- Authenticated non-admin → **403**
-- Authenticated Admin → continues
-
-**Production integration (deferred):** A future Supabase Auth middleware will
-verify the JWT, decode claims, and call `api.SetPrincipal(ctx, principal)`
-before `RequireAdmin` sees the request.
-
-Do not add `X-Role` headers or development bypasses. Tests inject a
-`Principal` directly into the request context.
-
----
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | ✅ | — | PostgreSQL connection string |
-| `HTTP_PORT` | | `8080` | HTTP listen port |
-| `DATABASE_MIN_CONNS` | | `2` | Min pool connections |
-| `DATABASE_MAX_CONNS` | | `10` | Max pool connections |
-| `DATABASE_CONNECT_TIMEOUT` | | `10s` | DB connect timeout (Go duration) |
-| `HTTP_REQUEST_TIMEOUT` | | `30s` | Per-request timeout (Go duration) |
-| `HTTP_SHUTDOWN_TIMEOUT` | | `15s` | Graceful shutdown wait |
-
-Copy `.env.example` and fill in your values:
-```sh
+```bash
 cp .env.example .env
+
+# Update the .env file with your database credentials
 ```
 
----
-
-## Running the API
-
-```sh
-# Set required variable
-export DATABASE_URL="postgresql://user:pass@localhost:5432/assetflow"
-
-# Start
-go run ./cmd/api
-```
-
----
-
-## Running Tests
-
-Unit and handler tests require **no database**:
-
-```sh
-go test ./...
-```
-
-Integration tests (skipped unless env var is set — never uses shared DATABASE_URL):
-
-```sh
-export ASSETFLOW_TEST_DATABASE_URL="postgresql://user:pass@localhost:5432/assetflow_test"
-go test ./...
-```
-
-> ⚠️ Never set `ASSETFLOW_TEST_DATABASE_URL` to the shared Supabase database.
-
----
-
-## sqlc Code Generation
-
-```sh
-# Use the 64-bit binary to avoid wazero memory issues on 32-bit Go builds
-sqlc generate
-```
-
-Generated files are in `internal/db/` — do not edit them manually.
-
----
-
-## Database Migrations
-
-> ⚠️ **Do not run migrations against the shared Supabase database.** Each
-> developer runs migrations against their own local or isolated database.
-> Schemas will be reconciled before merging branches.
-
-```sh
-# Apply migrations
-goose -dir sql/migrations postgres "$DATABASE_URL" up
-
-# Check status
-goose -dir sql/migrations postgres "$DATABASE_URL" status
-
-# Roll back
-goose -dir sql/migrations postgres "$DATABASE_URL" down
-```
-
----
-
-## Department Head Assignment
-
-The `departments` table intentionally does **not** have a `head_id` column.
-Department Head assignment is deferred until the **Employees module is merged**.
-A subsequent migration will add:
-
-```sql
-ALTER TABLE departments
-    ADD COLUMN head_id UUID REFERENCES employees(id) ON DELETE SET NULL;
-```
-
----
-
-## DB Doctor (Temporary CLI)
-
-`cmd/dbdoctor` is a temporary diagnostic tool for inspecting and safely
-dropping a pre-existing `departments` table that blocks migrations.
-
-```sh
-# Inspect (read-only)
-go run ./cmd/dbdoctor inspect
-
-# Drop only if empty and no FK dependents
-go run ./cmd/dbdoctor drop-empty-departments --confirm DROP_EMPTY_DEPARTMENTS
-```
-
-This tool should be **removed before the final PR** once migrations are stable.
+1. Install dependencies:
+   ```bash
+   go mod tidy
+   ```
+2. Generate SQLC models and queries (requires sqlc CLI):
+   ```bash
+   sqlc generate
+   ```
+3. Run database migrations (requires goose CLI and `DATABASE_URL`):
+   ```bash
+   goose up
+   ```
+4. Start the API server:
+   ```bash
+   go run ./cmd/api
+   ```

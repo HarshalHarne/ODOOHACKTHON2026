@@ -12,9 +12,7 @@ import DataTable from "@/components/workspace/DataTable";
 import FilterSelect from "@/components/workspace/FilterSelect";
 import ScreenPanel from "@/components/workspace/ScreenPanel";
 import StatusBadge from "@/components/workspace/StatusBadge";
-import {
-  useWorkspaceData,
-} from "@/hooks/use-workspace-data";
+import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import type { Asset, WorkspaceData } from "@/lib/workspace/types";
 import {
   deterministicHash,

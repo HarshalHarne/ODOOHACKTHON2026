@@ -28,10 +28,12 @@ export function useWorkspaceData() {
 
   useEffect(() => {
     ensureSeedData();
-    refresh();
+    setTimeout(() => {
+      refresh();
+    }, 0);
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === "assetflow-workspace") {
+      if (event.key === "assetflow-workspace-v2") {
         refresh();
       }
     };

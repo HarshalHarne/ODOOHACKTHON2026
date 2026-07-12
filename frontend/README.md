@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AssetFlow Frontend
 
-## Getting Started
+This frontend is the user-facing layer for AssetFlow, built with Next.js, React, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## What it contains
+
+- Auth screens for login and signup
+- A dashboard shell with workspace navigation
+- Modules for assets, allocations, bookings, audits, maintenance, notifications, reports, and organization setup
+- Shared UI primitives and workspace-state helpers
+
+## Project structure
+
+- [src/app](src/app) — route-based pages and layout wrappers
+- [src/components](src/components) — feature-specific UI components
+- [src/lib/workspace](src/lib/workspace) — types, storage helpers, and demo workspace data
+- [src/hooks](src/hooks) — reusable hooks
+
+## Runtime behavior
+
+The current frontend uses browser local storage for workspace state. Demo data is seeded from [src/lib/workspace/storage.ts](src/lib/workspace/storage.ts) and stored under the key `assetflow-workspace-v2`.
+
+## Local development
 
 ```bash
+cd frontend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build verification
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd frontend
+npm run build
+```
 
-## Learn More
+## Notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The UI is currently a frontend-first prototype. Most of the workspace modules are driven by local demo data, while the backend provides a separate API foundation for department management.

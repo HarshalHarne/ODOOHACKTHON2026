@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { getWorkspaceData } from "@/lib/workspace/storage";
+import { 
+  getWorkspaceData,
+  fetchDepartments,
+  fetchCategories,
+  fetchEmployees
+} from "@/lib/workspace/storage";
 import type { WorkspaceData } from "@/lib/workspace/types";
 
 export function useWorkspaceData() {
@@ -20,9 +25,31 @@ export function useWorkspaceData() {
     auditChecklist: [],
     discrepancyReports: [],
   });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    setData(getWorkspaceData());
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    const localData = getWorkspaceData();
+    try {
+      const [departments, categories, employees] = await Promise.all([
+        fetchDepartments(),
+        fetchCategories(),
+        fetchEmployees(),
+      ]);
+
+      setData({
+        ...localData,
+        departments,
+        categories,
+        employees,
+      });
+    } catch (err) {
+      console.error("Failed to fetch workspace data:", err);
+      // Fallback to local data only
+      setData(localData);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {

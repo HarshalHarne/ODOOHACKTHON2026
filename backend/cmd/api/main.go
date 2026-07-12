@@ -20,7 +20,10 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/HarshalHarne/assetflow/internal/api"
 	"github.com/HarshalHarne/assetflow/internal/config"
+	"github.com/HarshalHarne/assetflow/internal/core"
+	"github.com/HarshalHarne/assetflow/internal/db"
 	applogger "github.com/HarshalHarne/assetflow/internal/logger"
 )
 
@@ -33,8 +36,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// pgxpool manages a connection pool over the pgx driver.
-	// ParseConfig validates the DSN before any network connection is attempted.
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
 		log.Error("invalid DATABASE_URL", slog.String("error", err.Error()))
@@ -48,15 +49,24 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Verify connectivity at startup so misconfiguration fails fast.
 	if err := pool.Ping(context.Background()); err != nil {
 		log.Error("database ping failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	log.Info("database connection established")
 
+	queries := db.New(pool)
+	authService := core.NewAuthService(queries, cfg.JWTSecret, cfg.JWTExpiry)
+	departmentService := core.NewDepartmentService(queries).WithExecutor(pool)
+	employeeService := core.NewEmployeeService(queries)
+	categoryService := core.NewCategoryService(queries).WithExecutor(pool)
+
+	authHandler := api.NewAuthHandler(authService)
+	departmentHandler := api.NewDepartmentHandler(departmentService)
+	employeeHandler := api.NewEmployeeHandler(employeeService)
+	categoryHandler := api.NewCategoryHandler(categoryService)
+
 	app := fiber.New(fiber.Config{
-		// Return structured JSON error bodies rather than HTML.
 		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			var fiberErr *fiber.Error
@@ -67,42 +77,34 @@ func main() {
 		},
 	})
 
-	// --- Mandatory Fiber middleware (order matters) ---
-
-	// Recover must be first so panics in downstream middleware are caught.
 	app.Use(recover.New())
-
 	app.Use(requestid.New())
-
 	app.Use(fiberlogger.New(fiberlogger.Config{
 		Format: "${time} | ${status} | ${latency} | ${ip} | ${method} | ${path}\n",
 	}))
-
 	app.Use(cors.New())
-
 	app.Use(helmet.New())
-
 	app.Use(compress.New())
-
-	// Rate-limit: 100 requests per minute per IP.
 	app.Use(limiter.New(limiter.Config{
 		Max:        100,
-		Expiration: 1 * time.Minute,
+		Expiration: time.Minute,
 	}))
 
-	// Health probe — no auth required.
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	// Route groups will be registered here by future handler packages.
-	// e.g.: employee.RegisterRoutes(app, pool, cfg)
+	api.RegisterRoutes(app, api.RouterDeps{
+		AuthHandler:       authHandler,
+		DepartmentHandler: departmentHandler,
+		EmployeeHandler:   employeeHandler,
+		CategoryHandler:   categoryHandler,
+		JWTSecret:         cfg.JWTSecret,
+	})
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info("starting server", slog.String("addr", addr))
 
-	// Graceful shutdown: wait for SIGTERM / SIGINT then allow in-flight
-	// requests up to 10 seconds before forcing close.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 

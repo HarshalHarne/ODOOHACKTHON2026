@@ -62,6 +62,8 @@ type CategoryFormState = {
 type EmployeeFormState = {
   id?: string;
   name: string;
+  email: string;
+  password?: string;
   departmentId: string;
   role: string;
   status: EntityStatus;
@@ -82,6 +84,8 @@ const emptyCategoryForm: CategoryFormState = {
 
 const emptyEmployeeForm: EmployeeFormState = {
   name: "",
+  email: "",
+  password: "",
   departmentId: "",
   role: "",
   status: "active",
@@ -97,12 +101,15 @@ export default function OrganizationSetup() {
     useState<CategoryFormState>(emptyCategoryForm);
   const [employeeForm, setEmployeeForm] =
     useState<EmployeeFormState>(emptyEmployeeForm);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const departmentNameById = useMemo(() => {
     return new Map(data.departments.map((item) => [item.id, item.name]));
   }, [data.departments]);
 
   const openCreateForm = () => {
+    setError(null);
     if (activeTab === "departments") {
       setDepartmentForm(emptyDepartmentForm);
     } else if (activeTab === "categories") {
@@ -115,6 +122,7 @@ export default function OrganizationSetup() {
   };
 
   const openDepartmentEdit = (department: Department) => {
+    setError(null);
     setDepartmentForm({
       id: department.id,
       name: department.name,
@@ -126,6 +134,7 @@ export default function OrganizationSetup() {
   };
 
   const openCategoryEdit = (category: Category) => {
+    setError(null);
     setCategoryForm({
       id: category.id,
       name: category.name,
@@ -135,10 +144,13 @@ export default function OrganizationSetup() {
     setSheetOpen(true);
   };
 
-  const openEmployeeEdit = (employee: Employee) => {
+  const openEmployeeEdit = (employee: any) => {
+    setError(null);
     setEmployeeForm({
       id: employee.id,
       name: employee.name,
+      email: employee.email || "",
+      password: "",
       departmentId: employee.departmentId,
       role: employee.role,
       status: employee.status,
@@ -146,82 +158,121 @@ export default function OrganizationSetup() {
     setSheetOpen(true);
   };
 
-  const handleDepartmentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleDepartmentSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
 
     if (!departmentForm.name.trim() || !departmentForm.head.trim()) {
       return;
     }
 
-    upsertDepartment({
-      id: departmentForm.id,
-      name: departmentForm.name.trim(),
-      head: departmentForm.head.trim(),
-      parentDept: departmentForm.parentDept.trim(),
-      status: departmentForm.status,
-    });
+    setSubmitting(true);
+    try {
+      await upsertDepartment({
+        id: departmentForm.id,
+        name: departmentForm.name.trim(),
+        head: departmentForm.head.trim(),
+        parentDept: departmentForm.parentDept.trim(),
+        status: departmentForm.status,
+      });
 
-    notifyWorkspaceUpdated();
-    refresh();
-    setSheetOpen(false);
-    setDepartmentForm(emptyDepartmentForm);
+      notifyWorkspaceUpdated();
+      refresh();
+      setSheetOpen(false);
+      setDepartmentForm(emptyDepartmentForm);
+    } catch (err: any) {
+      setError(err.message || "Failed to save department");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleCategorySubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCategorySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
 
     if (!categoryForm.name.trim()) {
       return;
     }
 
-    upsertCategory({
-      id: categoryForm.id,
-      name: categoryForm.name.trim(),
-      description: categoryForm.description.trim(),
-      status: categoryForm.status,
-    });
+    setSubmitting(true);
+    try {
+      await upsertCategory({
+        id: categoryForm.id,
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim(),
+        status: categoryForm.status,
+      });
 
-    notifyWorkspaceUpdated();
-    refresh();
-    setSheetOpen(false);
-    setCategoryForm(emptyCategoryForm);
+      notifyWorkspaceUpdated();
+      refresh();
+      setSheetOpen(false);
+      setCategoryForm(emptyCategoryForm);
+    } catch (err: any) {
+      setError(err.message || "Failed to save category");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleEmployeeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleEmployeeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
 
-    if (!employeeForm.name.trim() || !employeeForm.departmentId) {
+    if (!employeeForm.name.trim() || !employeeForm.departmentId || !employeeForm.email.trim()) {
       return;
     }
 
-    upsertEmployee({
-      id: employeeForm.id,
-      name: employeeForm.name.trim(),
-      departmentId: employeeForm.departmentId,
-      role: employeeForm.role.trim(),
-      status: employeeForm.status,
-    });
+    if (!employeeForm.id && !employeeForm.password?.trim()) {
+      setError("Password is required for new employees");
+      return;
+    }
 
-    notifyWorkspaceUpdated();
-    refresh();
-    setSheetOpen(false);
-    setEmployeeForm(emptyEmployeeForm);
+    setSubmitting(true);
+    try {
+      await upsertEmployee({
+        id: employeeForm.id,
+        name: employeeForm.name.trim(),
+        email: employeeForm.email.trim(),
+        password: employeeForm.password?.trim(),
+        departmentId: employeeForm.departmentId,
+        role: employeeForm.role.trim(),
+        status: employeeForm.status,
+      });
+
+      notifyWorkspaceUpdated();
+      refresh();
+      setSheetOpen(false);
+      setEmployeeForm(emptyEmployeeForm);
+    } catch (err: any) {
+      setError(err.message || "Failed to save employee");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = () => {
-    if (activeTab === "departments" && departmentForm.id) {
-      deleteDepartment(departmentForm.id);
-    } else if (activeTab === "categories" && categoryForm.id) {
-      deleteCategory(categoryForm.id);
-    } else if (activeTab === "employee" && employeeForm.id) {
-      deleteEmployee(employeeForm.id);
-    } else {
-      return;
-    }
+  const handleDelete = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (activeTab === "departments" && departmentForm.id) {
+        await deleteDepartment(departmentForm.id);
+      } else if (activeTab === "categories" && categoryForm.id) {
+        await deleteCategory(categoryForm.id);
+      } else if (activeTab === "employee" && employeeForm.id) {
+        await deleteEmployee(employeeForm.id);
+      } else {
+        return;
+      }
 
-    notifyWorkspaceUpdated();
-    refresh();
-    setSheetOpen(false);
+      notifyWorkspaceUpdated();
+      refresh();
+      setSheetOpen(false);
+    } catch (err: any) {
+      setError(err.message || "Failed to delete item");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const sheetTitle =
@@ -392,6 +443,12 @@ export default function OrganizationSetup() {
             </SheetDescription>
           </SheetHeader>
 
+          {error && (
+            <div className="mx-4 mt-4 rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
+              {error}
+            </div>
+          )}
+
           {activeTab === "departments" && (
             <form
               className="flex flex-col gap-4 px-4"
@@ -462,17 +519,18 @@ export default function OrganizationSetup() {
                   ))}
                 </select>
               </FormField>
-              <SheetFooter className="px-0">
+              <SheetFooter className="px-0 mt-4">
                 {departmentForm.id ? (
                   <Button
                     type="button"
                     variant="destructive"
                     onClick={handleDelete}
+                    disabled={submitting}
                   >
                     Delete
                   </Button>
                 ) : null}
-                <Button type="submit">Save department</Button>
+                <Button type="submit" disabled={submitting}>Save department</Button>
               </SheetFooter>
             </form>
           )}
@@ -525,17 +583,18 @@ export default function OrganizationSetup() {
                   ))}
                 </select>
               </FormField>
-              <SheetFooter className="px-0">
+              <SheetFooter className="px-0 mt-4">
                 {categoryForm.id ? (
                   <Button
                     type="button"
                     variant="destructive"
                     onClick={handleDelete}
+                    disabled={submitting}
                   >
                     Delete
                   </Button>
                 ) : null}
-                <Button type="submit">Save category</Button>
+                <Button type="submit" disabled={submitting}>Save category</Button>
               </SheetFooter>
             </form>
           )}
@@ -556,8 +615,41 @@ export default function OrganizationSetup() {
                     }))
                   }
                   required
+                  disabled={submitting}
                 />
               </FormField>
+              <FormField label="Email">
+                <input
+                  type="email"
+                  className={formControlClass}
+                  value={employeeForm.email}
+                  onChange={(event) =>
+                    setEmployeeForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  required
+                  disabled={submitting}
+                />
+              </FormField>
+              {!employeeForm.id && (
+                <FormField label="Password">
+                  <input
+                    type="password"
+                    className={formControlClass}
+                    value={employeeForm.password}
+                    onChange={(event) =>
+                      setEmployeeForm((current) => ({
+                        ...current,
+                        password: event.target.value,
+                      }))
+                    }
+                    required
+                    disabled={submitting}
+                  />
+                </FormField>
+              )}
               <FormField label="Department">
                 <select
                   className={formControlClass}
@@ -608,17 +700,18 @@ export default function OrganizationSetup() {
                   ))}
                 </select>
               </FormField>
-              <SheetFooter className="px-0">
+              <SheetFooter className="px-0 mt-4">
                 {employeeForm.id ? (
                   <Button
                     type="button"
                     variant="destructive"
                     onClick={handleDelete}
+                    disabled={submitting}
                   >
                     Delete
                   </Button>
                 ) : null}
-                <Button type="submit">Save employee</Button>
+                <Button type="submit" disabled={submitting}>Save employee</Button>
               </SheetFooter>
             </form>
           )}

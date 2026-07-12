@@ -1,25 +1,22 @@
-// Package config loads application configuration from environment variables.
-// godotenv is used to populate the environment from .env before os.Getenv is called.
 package config
 
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
-// Config holds all runtime configuration for the API server.
 type Config struct {
 	Port        string
 	DatabaseURL string
 	JWTSecret   string
+	JWTExpiry   time.Duration
 }
 
-// Load reads .env (if present) then builds Config from environment variables.
-// Failing to find .env is non-fatal; the process environment is always checked.
 func Load() (*Config, error) {
-	// Best-effort .env load — production containers inject env directly.
 	_ = godotenv.Load()
 
 	port := os.Getenv("PORT")
@@ -37,9 +34,19 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config: JWT_SECRET is required")
 	}
 
+	jwtExpiryHours := 24
+	if raw := os.Getenv("JWT_EXPIRY_HOURS"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value <= 0 {
+			return nil, fmt.Errorf("config: JWT_EXPIRY_HOURS must be a positive integer")
+		}
+		jwtExpiryHours = value
+	}
+
 	return &Config{
 		Port:        port,
 		DatabaseURL: dbURL,
 		JWTSecret:   jwtSecret,
+		JWTExpiry:   time.Duration(jwtExpiryHours) * time.Hour,
 	}, nil
 }

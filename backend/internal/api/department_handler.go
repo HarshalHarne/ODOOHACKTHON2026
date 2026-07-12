@@ -2,28 +2,26 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/HarshalHarne/assetflow/internal/core"
 	"github.com/gofiber/fiber/v3"
 )
 
-const maxBodyBytes = 1 << 20 // 1 MiB
+const maxBodyBytes = 1 << 20
 
-// DepartmentHandler handles HTTP requests for the departments resource.
-// It delegates all business logic to the service layer.
 type DepartmentHandler struct {
 	svc core.DepartmentServicer
 }
 
-// NewDepartmentHandler constructs a DepartmentHandler.
 func NewDepartmentHandler(svc core.DepartmentServicer) *DepartmentHandler {
 	return &DepartmentHandler{svc: svc}
 }
-
-// ── POST /api/v1/departments ─────────────────────────────────────────────────
 
 func (h *DepartmentHandler) Create(c fiber.Ctx) error {
 	var req core.CreateDepartmentRequest
@@ -39,15 +37,12 @@ func (h *DepartmentHandler) Create(c fiber.Ctx) error {
 	return writeData(c, fiber.StatusCreated, dept)
 }
 
-// ── GET /api/v1/departments ──────────────────────────────────────────────────
-
 func (h *DepartmentHandler) List(c fiber.Ctx) error {
 	depts, err := h.svc.ListDepartments(c.Context())
 	if err != nil {
 		return writeDomainError(c, err)
 	}
 
-	// Guarantee non-null JSON array.
 	if depts == nil {
 		depts = []core.Department{}
 	}
@@ -55,12 +50,8 @@ func (h *DepartmentHandler) List(c fiber.Ctx) error {
 	return writeData(c, fiber.StatusOK, depts)
 }
 
-// ── GET /api/v1/departments/:id ─────────────────────────────────────────────
-
 func (h *DepartmentHandler) Get(c fiber.Ctx) error {
-	id := c.Params("id")
-
-	dept, err := h.svc.GetDepartment(c.Context(), id)
+	dept, err := h.svc.GetDepartment(c.Context(), c.Params("id"))
 	if err != nil {
 		return writeDomainError(c, err)
 	}
@@ -68,17 +59,13 @@ func (h *DepartmentHandler) Get(c fiber.Ctx) error {
 	return writeData(c, fiber.StatusOK, dept)
 }
 
-// ── PATCH /api/v1/departments/:id ───────────────────────────────────────────
-
 func (h *DepartmentHandler) Update(c fiber.Ctx) error {
-	id := c.Params("id")
-
 	var req core.UpdateDepartmentRequest
 	if err := decodeBody(c, &req); err != nil {
 		return writeError(c, fiber.StatusBadRequest, "invalid_request", err.Error())
 	}
 
-	dept, err := h.svc.UpdateDepartment(c.Context(), id, req)
+	dept, err := h.svc.UpdateDepartment(c.Context(), c.Params("id"), req)
 	if err != nil {
 		return writeDomainError(c, err)
 	}
@@ -86,17 +73,13 @@ func (h *DepartmentHandler) Update(c fiber.Ctx) error {
 	return writeData(c, fiber.StatusOK, dept)
 }
 
-// ── PATCH /api/v1/departments/:id/status ────────────────────────────────────
-
 func (h *DepartmentHandler) UpdateStatus(c fiber.Ctx) error {
-	id := c.Params("id")
-
 	var req core.UpdateDepartmentStatusRequest
 	if err := decodeBody(c, &req); err != nil {
 		return writeError(c, fiber.StatusBadRequest, "invalid_request", err.Error())
 	}
 
-	dept, err := h.svc.UpdateDepartmentStatus(c.Context(), id, req)
+	dept, err := h.svc.UpdateDepartmentStatus(c.Context(), c.Params("id"), req)
 	if err != nil {
 		return writeDomainError(c, err)
 	}
@@ -104,29 +87,78 @@ func (h *DepartmentHandler) UpdateStatus(c fiber.Ctx) error {
 	return writeData(c, fiber.StatusOK, dept)
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+func (h *DepartmentHandler) Replace(c fiber.Ctx) error {
+	var req struct {
+		Name     string  `json:"name"`
+		Code     string  `json:"code"`
+		ParentID *string `json:"parentId"`
+		Status   string  `json:"status"`
+	}
+	if err := decodeBody(c, &req); err != nil {
+		return writeError(c, fiber.StatusBadRequest, "invalid_request", err.Error())
+	}
 
-// decodeBody reads and decodes the JSON body.
-// It limits body size, rejects malformed JSON, and rejects trailing objects.
+	if strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Code) == "" {
+		return writeError(c, fiber.StatusBadRequest, "invalid_request", "name and code are required.")
+	}
+
+	name := req.Name
+	code := req.Code
+	dept, err := h.svc.UpdateDepartment(c.Context(), c.Params("id"), core.UpdateDepartmentRequest{
+		Name: &name,
+		Code: &code,
+		ParentID: core.OptionalNullableUUID{
+			Value:   req.ParentID,
+			Present: true,
+		},
+	})
+	if err != nil {
+		return writeDomainError(c, err)
+	}
+
+	if status := strings.TrimSpace(req.Status); status != "" && status != dept.Status {
+		dept, err = h.svc.UpdateDepartmentStatus(c.Context(), c.Params("id"), core.UpdateDepartmentStatusRequest{
+			Status: status,
+		})
+		if err != nil {
+			return writeDomainError(c, err)
+		}
+	}
+
+	return writeData(c, fiber.StatusOK, dept)
+}
+
+func (h *DepartmentHandler) Delete(c fiber.Ctx) error {
+	deleter, ok := h.svc.(interface {
+		DeleteDepartment(ctx context.Context, id string) error
+	})
+	if !ok {
+		return writeError(c, fiber.StatusInternalServerError, "internal_error", "An unexpected error occurred.")
+	}
+
+	if err := deleter.DeleteDepartment(c.Context(), c.Params("id")); err != nil {
+		return writeDomainError(c, err)
+	}
+
+	return writeData(c, fiber.StatusOK, fiber.Map{"deleted": true})
+}
+
 func decodeBody(c fiber.Ctx, v any) error {
 	body := c.Body()
-	
 	if len(body) > maxBodyBytes {
 		return errors.New("request body too large")
 	}
-	
 	if len(body) == 0 {
 		return errors.New("request body must not be empty")
 	}
-	
+
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(v); err != nil {
-		return errors.New("malformed JSON body")
+		return fmt.Errorf("malformed JSON body: %w", err)
 	}
 
-	// Reject trailing JSON objects in the same request.
 	if dec.More() {
 		return errors.New("request body must contain exactly one JSON object")
 	}
@@ -134,7 +166,6 @@ func decodeBody(c fiber.Ctx, v any) error {
 	return nil
 }
 
-// writeDomainError maps domain errors to HTTP status codes and error responses.
 func writeDomainError(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, core.ErrDepartmentNotFound):
@@ -149,6 +180,8 @@ func writeDomainError(c fiber.Ctx, err error) error {
 		return writeError(c, fiber.StatusConflict, "invalid_department_hierarchy", "This change would create an invalid or circular hierarchy.")
 	case errors.Is(err, core.ErrInvalidDepartmentStatus):
 		return writeError(c, fiber.StatusBadRequest, "invalid_status", "Status must be 'active' or 'inactive'.")
+	case errors.Is(err, core.ErrDepartmentInUse):
+		return writeError(c, fiber.StatusConflict, "department_in_use", "Department cannot be deleted while it is still referenced.")
 	case errors.Is(err, core.ErrInvalidInput):
 		return writeError(c, fiber.StatusBadRequest, "invalid_input", err.Error())
 	default:

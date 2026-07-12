@@ -1,23 +1,12 @@
-// Package api implements the HTTP layer for AssetFlow.
-//
-// Authorization seam:
-//
-// This package defines a Principal type and a RequireAdmin middleware.
-// In production, a future Supabase Auth middleware will verify the JWT token,
-// decode claims, and call SetPrincipal to inject a Principal into the request
-// context before RequireAdmin sees the request.
-//
-// Until that middleware is implemented, all Department routes return 401 for
-// every request because no Principal is ever injected.
-//
-// DO NOT add X-Role headers, development bypasses, or hard-coded admins.
 package api
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v3"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-// Role identifies a user's role within the application.
 type Role string
 
 const (
@@ -25,35 +14,74 @@ const (
 	RoleAssetManager   Role = "asset_manager"
 	RoleDepartmentHead Role = "department_head"
 	RoleEmployee       Role = "employee"
+	RoleUser           Role = "employee"
 )
 
-// Principal represents an authenticated caller.
-// Authenticated must be true and Role must be RoleAdmin for Admin routes.
 type Principal struct {
 	UserID        string
 	Role          Role
 	Authenticated bool
 }
 
-// SetPrincipal stores a Principal in the fiber Locals.
-// Call this from auth middleware or from tests.
-func SetPrincipal(c fiber.Ctx, p Principal) {
-	c.Locals("principal", p)
+type jwtClaims struct {
+	Role string `json:"role"`
+	jwt.RegisteredClaims
 }
 
-// GetPrincipal retrieves the Principal from the fiber Locals.
-// Returns the Principal and true if present; zero value and false otherwise.
+func SetPrincipal(c fiber.Ctx, p Principal) {
+	c.Locals("principal", p)
+	c.Locals("employeeID", p.UserID)
+	c.Locals("role", string(p.Role))
+}
+
 func GetPrincipal(c fiber.Ctx) (Principal, bool) {
 	p, ok := c.Locals("principal").(Principal)
 	return p, ok
 }
 
-// RequireAdmin is a fiber middleware that enforces Admin-only access.
-//
-//   - No principal in context           → 401 Unauthorized
-//   - Unauthenticated principal         → 401 Unauthorized
-//   - Authenticated principal, non-admin → 403 Forbidden
-//   - Authenticated Admin               → continues
+func JWTMiddleware(secret string) fiber.Handler {
+	jwtSecret := []byte(secret)
+
+	return func(c fiber.Ctx) error {
+		if principal, ok := GetPrincipal(c); ok && principal.Authenticated {
+			return c.Next()
+		}
+
+		authHeader := strings.TrimSpace(c.Get("Authorization"))
+		if authHeader == "" {
+			return writeError(c, fiber.StatusUnauthorized, "unauthorized", "Authentication is required.")
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+			return writeError(c, fiber.StatusUnauthorized, "unauthorized", "Authentication is required.")
+		}
+
+		token, err := jwt.ParseWithClaims(strings.TrimSpace(parts[1]), &jwtClaims{}, func(token *jwt.Token) (any, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return jwtSecret, nil
+		})
+		if err != nil || !token.Valid {
+			return writeError(c, fiber.StatusUnauthorized, "unauthorized", "Authentication is required.")
+		}
+
+		claims, ok := token.Claims.(*jwtClaims)
+		if !ok || claims.Subject == "" || strings.TrimSpace(claims.Role) == "" {
+			return writeError(c, fiber.StatusUnauthorized, "unauthorized", "Authentication is required.")
+		}
+
+		SetPrincipal(c, Principal{
+			UserID:        claims.Subject,
+			Role:          Role(claims.Role),
+			Authenticated: true,
+		})
+
+		return c.Next()
+	}
+}
+
 func RequireAdmin(c fiber.Ctx) error {
 	p, ok := GetPrincipal(c)
 	if !ok || !p.Authenticated {

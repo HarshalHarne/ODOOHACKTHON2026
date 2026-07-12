@@ -2,13 +2,17 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/HarshalHarne/assetflow/internal/db"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var ErrDepartmentInUse = errors.New("department is still referenced")
 
 // DepartmentServicer is the interface the HTTP layer depends on.
 // It is implemented by DepartmentService and can be mocked in tests.
@@ -25,7 +29,7 @@ type DepartmentServicer interface {
 // test fakes only need to implement these methods (not the full db.Querier).
 type DepartmentQuerier interface {
 	CreateDepartment(ctx context.Context, arg db.CreateDepartmentParams) (db.CreateDepartmentRow, error)
-	DepartmentCodeExists(ctx context.Context, code string) (bool, error)
+	DepartmentCodeExists(ctx context.Context, code interface{}) (bool, error)
 	DepartmentCodeExistsExcludingID(ctx context.Context, arg db.DepartmentCodeExistsExcludingIDParams) (bool, error)
 	DepartmentNameExists(ctx context.Context, name string) (bool, error)
 	DepartmentNameExistsExcludingID(ctx context.Context, arg db.DepartmentNameExistsExcludingIDParams) (bool, error)
@@ -39,12 +43,18 @@ type DepartmentQuerier interface {
 // DepartmentService implements DepartmentServicer using a DepartmentQuerier.
 type DepartmentService struct {
 	store DepartmentQuerier
+	exec  db.DBTX
 }
 
 // NewDepartmentService constructs a DepartmentService.
 // store is typically *db.Queries backed by pgxpool; in tests it is a mock.
 func NewDepartmentService(store DepartmentQuerier) *DepartmentService {
 	return &DepartmentService{store: store}
+}
+
+func (s *DepartmentService) WithExecutor(exec db.DBTX) *DepartmentService {
+	s.exec = exec
+	return s
 }
 
 // ── Create ───────────────────────────────────────────────────────────────────
@@ -247,6 +257,31 @@ func (s *DepartmentService) UpdateDepartmentStatus(ctx context.Context, id strin
 	}
 
 	return updateStatusRowToDepartment(row), nil
+}
+
+func (s *DepartmentService) DeleteDepartment(ctx context.Context, id string) error {
+	if s.exec == nil {
+		return errors.New("department delete executor is not configured")
+	}
+
+	uid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrInvalidInput, err.Error())
+	}
+
+	tag, err := s.exec.Exec(ctx, "DELETE FROM departments WHERE id = $1", uid)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return ErrDepartmentInUse
+		}
+		return mapDBError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrDepartmentNotFound
+	}
+
+	return nil
 }
 
 // ── Type converters ───────────────────────────────────────────────────────────

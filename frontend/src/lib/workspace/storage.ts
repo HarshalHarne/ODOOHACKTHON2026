@@ -15,6 +15,7 @@ import type {
   ResourceBooking,
   WorkspaceData,
 } from "@/lib/workspace/types";
+import { apiClient } from "@/lib/api-client";
 
 const STORAGE_KEY = "assetflow-workspace";
 
@@ -85,19 +86,31 @@ export function getWorkspaceData(): WorkspaceData {
   return readWorkspace();
 }
 
-export function saveDepartments(departments: Department[]) {
-  const data = readWorkspace();
-  writeWorkspace({ ...data, departments });
+export async function fetchDepartments(): Promise<Department[]> {
+  try {
+    return await apiClient<Department[]>("/api/v1/departments") || [];
+  } catch (error) {
+    console.error("Failed to fetch departments", error);
+    return [];
+  }
 }
 
-export function saveCategories(categories: Category[]) {
-  const data = readWorkspace();
-  writeWorkspace({ ...data, categories });
+export async function fetchCategories(): Promise<Category[]> {
+  try {
+    return await apiClient<Category[]>("/api/v1/categories") || [];
+  } catch (error) {
+    console.error("Failed to fetch categories", error);
+    return [];
+  }
 }
 
-export function saveEmployees(employees: Employee[]) {
-  const data = readWorkspace();
-  writeWorkspace({ ...data, employees });
+export async function fetchEmployees(): Promise<Employee[]> {
+  try {
+    return await apiClient<Employee[]>("/api/v1/employees") || [];
+  } catch (error) {
+    console.error("Failed to fetch employees", error);
+    return [];
+  }
 }
 
 export function saveAssets(assets: Asset[]) {
@@ -105,57 +118,62 @@ export function saveAssets(assets: Asset[]) {
   writeWorkspace({ ...data, assets });
 }
 
-export function upsertDepartment(
+export async function upsertDepartment(
   department: Omit<Department, "id"> & { id?: string }
 ) {
-  const data = readWorkspace();
-  const id = department.id ?? createId();
-  const nextDepartment: Department = { ...department, id };
-  const index = data.departments.findIndex((item) => item.id === id);
-
-  const departments =
-    index === -1
-      ? [...data.departments, nextDepartment]
-      : data.departments.map((item) =>
-          item.id === id ? nextDepartment : item
-        );
-
-  writeWorkspace({ ...data, departments });
-  return nextDepartment;
+  if (department.id) {
+    return await apiClient<Department>(`/api/v1/departments/${department.id}`, {
+      method: "PUT",
+      data: department,
+    });
+  } else {
+    // Parent department logic might need adjustment if parentDept is a name in frontend but ID in backend,
+    // but we send it as is. The backend handles parentId / parentDept.
+    return await apiClient<Department>("/api/v1/departments", {
+      method: "POST",
+      data: {
+        name: department.name,
+        code: department.name.substring(0, 3).toUpperCase(),
+        status: department.status,
+      },
+    });
+  }
 }
 
-export function upsertCategory(
+export async function upsertCategory(
   category: Omit<Category, "id"> & { id?: string }
 ) {
-  const data = readWorkspace();
-  const id = category.id ?? createId();
-  const nextCategory: Category = { ...category, id };
-  const index = data.categories.findIndex((item) => item.id === id);
-
-  const categories =
-    index === -1
-      ? [...data.categories, nextCategory]
-      : data.categories.map((item) => (item.id === id ? nextCategory : item));
-
-  writeWorkspace({ ...data, categories });
-  return nextCategory;
+  if (category.id) {
+    return await apiClient<Category>(`/api/v1/categories/${category.id}`, {
+      method: "PUT",
+      data: category,
+    });
+  } else {
+    return await apiClient<Category>("/api/v1/categories", {
+      method: "POST",
+      data: {
+        name: category.name,
+        description: category.description,
+        status: category.status,
+      },
+    });
+  }
 }
 
-export function upsertEmployee(
-  employee: Omit<Employee, "id"> & { id?: string }
+export async function upsertEmployee(
+  employee: any // Omit<Employee, "id"> & { id?: string } + email, password
 ) {
-  const data = readWorkspace();
-  const id = employee.id ?? createId();
-  const nextEmployee: Employee = { ...employee, id };
-  const index = data.employees.findIndex((item) => item.id === id);
-
-  const employees =
-    index === -1
-      ? [...data.employees, nextEmployee]
-      : data.employees.map((item) => (item.id === id ? nextEmployee : item));
-
-  writeWorkspace({ ...data, employees });
-  return nextEmployee;
+  if (employee.id) {
+    return await apiClient<Employee>(`/api/v1/employees/${employee.id}`, {
+      method: "PUT",
+      data: employee,
+    });
+  } else {
+    return await apiClient<Employee>("/api/v1/employees", {
+      method: "POST",
+      data: employee,
+    });
+  }
 }
 
 export function upsertAsset(asset: Omit<Asset, "id"> & { id?: string }) {
@@ -173,28 +191,16 @@ export function upsertAsset(asset: Omit<Asset, "id"> & { id?: string }) {
   return nextAsset;
 }
 
-export function deleteDepartment(id: string) {
-  const data = readWorkspace();
-  writeWorkspace({
-    ...data,
-    departments: data.departments.filter((item) => item.id !== id),
-  });
+export async function deleteDepartment(id: string) {
+  await apiClient(`/api/v1/departments/${id}`, { method: "DELETE" });
 }
 
-export function deleteCategory(id: string) {
-  const data = readWorkspace();
-  writeWorkspace({
-    ...data,
-    categories: data.categories.filter((item) => item.id !== id),
-  });
+export async function deleteCategory(id: string) {
+  await apiClient(`/api/v1/categories/${id}`, { method: "DELETE" });
 }
 
-export function deleteEmployee(id: string) {
-  const data = readWorkspace();
-  writeWorkspace({
-    ...data,
-    employees: data.employees.filter((item) => item.id !== id),
-  });
+export async function deleteEmployee(id: string) {
+  await apiClient(`/api/v1/employees/${id}`, { method: "DELETE" });
 }
 
 export function deleteAsset(id: string) {

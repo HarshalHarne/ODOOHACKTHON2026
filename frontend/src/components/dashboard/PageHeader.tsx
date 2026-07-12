@@ -20,7 +20,9 @@ export default function PageHeader({
     const savedTheme = localStorage.getItem("assetflow-theme");
     const isDark = savedTheme === "dark";
 
-    setDarkMode(isDark);
+    setTimeout(() => {
+      setDarkMode(isDark);
+    }, 0);
     document.documentElement.classList.toggle("dark", isDark);
   }, []);
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { getWorkspaceData } from "@/lib/workspace/storage";
+import { ensureSeedData, getWorkspaceData } from "@/lib/workspace/storage";
 import type { WorkspaceData } from "@/lib/workspace/types";
 
 export function useWorkspaceData() {
@@ -19,6 +19,7 @@ export function useWorkspaceData() {
     auditCycles: [],
     auditChecklist: [],
     discrepancyReports: [],
+    notifications: [],
   });
 
   const refresh = useCallback(() => {
@@ -26,7 +27,10 @@ export function useWorkspaceData() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    ensureSeedData();
+    setTimeout(() => {
+      refresh();
+    }, 0);
 
     const handleStorage = (event: StorageEvent) => {
       if (event.key === "assetflow-workspace-v2") {

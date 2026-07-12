@@ -94,12 +94,16 @@ export type AuditVerificationStatus =
   | "missing"
   | "damaged";
 
-export type AuditCycleStatus = "open" | "closed";
+export type AuditCycleStatus = "open" | "in_progress" | "closed";
+
+export type AuditScopeType = "department" | "location";
 
 export interface AuditCycle {
   id: string;
   title: string;
   departmentId: string;
+  scopeType: AuditScopeType;
+  scopeValue: string;
   startDate: string;
   endDate: string;
   auditors: string;
@@ -114,6 +118,7 @@ export interface AuditChecklistItem {
   assetId: string;
   expectedLocation: string;
   verification: AuditVerificationStatus;
+  note: string;
 }
 
 export interface DiscrepancyReport {
@@ -122,6 +127,26 @@ export interface DiscrepancyReport {
   generatedAt: string;
   flaggedCount: number;
   summary: string;
+}
+
+export type NotificationType =
+  | "asset"
+  | "maintenance"
+  | "booking"
+  | "transfer"
+  | "return"
+  | "audit";
+
+export interface WorkspaceNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  relatedEntityId?: string;
+  relatedEntityLabel?: string;
+  suggestedAction?: string;
 }
 
 export interface WorkspaceData {
@@ -137,6 +162,7 @@ export interface WorkspaceData {
   auditCycles: AuditCycle[];
   auditChecklist: AuditChecklistItem[];
   discrepancyReports: DiscrepancyReport[];
+  notifications: WorkspaceNotification[];
 }
 
 export type OrganizationTab = "departments" | "categories" | "employee";
@@ -174,4 +200,19 @@ export const AUDIT_VERIFICATION_OPTIONS: AuditVerificationStatus[] = [
   "verified",
   "missing",
   "damaged",
+];
+
+export const AUDIT_CYCLE_STATUSES: AuditCycleStatus[] = [
+  "open",
+  "in_progress",
+  "closed",
+];
+
+export const NOTIFICATION_TYPES: NotificationType[] = [
+  "asset",
+  "maintenance",
+  "booking",
+  "transfer",
+  "return",
+  "audit",
 ];

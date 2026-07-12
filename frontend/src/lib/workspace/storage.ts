@@ -16,21 +16,73 @@ import type {
   WorkspaceData,
 } from "@/lib/workspace/types";
 
-const STORAGE_KEY = "assetflow-workspace";
+const STORAGE_KEY = "assetflow-workspace-v2";
 
 const emptyWorkspace: WorkspaceData = {
-  departments: [],
-  categories: [],
-  employees: [],
-  assets: [],
-  allocations: [],
-  allocationHistory: [],
-  resources: [],
-  bookings: [],
-  maintenanceRequests: [],
-  auditCycles: [],
-  auditChecklist: [],
-  discrepancyReports: [],
+  departments: [
+    { id: "dept-1", name: "Engineering", head: "Sarah Chen", parentDept: "", status: "active" },
+    { id: "dept-2", name: "Design", head: "Marcus Rivera", parentDept: "", status: "active" },
+    { id: "dept-3", name: "Operations", head: "David Kim", parentDept: "", status: "active" },
+    { id: "dept-4", name: "Frontend", head: "Alex Wong", parentDept: "dept-1", status: "active" },
+  ],
+  categories: [
+    { id: "cat-1", name: "Laptops", description: "Standard issue computers", status: "active" },
+    { id: "cat-2", name: "Monitors", description: "External displays", status: "active" },
+    { id: "cat-3", name: "Mobile Devices", description: "Phones and tablets", status: "active" },
+    { id: "cat-4", name: "Office Furniture", description: "Chairs, desks, etc.", status: "active" },
+  ],
+  employees: [
+    { id: "emp-1", name: "Alice Johnson", departmentId: "dept-4", role: "Senior Frontend Engineer", status: "active" },
+    { id: "emp-2", name: "Bob Smith", departmentId: "dept-1", role: "Backend Engineer", status: "active" },
+    { id: "emp-3", name: "Charlie Davis", departmentId: "dept-2", role: "Product Designer", status: "active" },
+    { id: "emp-4", name: "Diana Prince", departmentId: "dept-3", role: "Operations Manager", status: "active" },
+    { id: "emp-5", name: "Evan Wright", departmentId: "dept-1", role: "Engineering Manager", status: "active" },
+  ],
+  assets: [
+    { id: "ast-1", tag: "AST-001", name: "MacBook Pro 16\" M3 Max", categoryId: "cat-1", status: "allocated", location: "New York Office", departmentId: "dept-4", serial: "C02F234XQ6L", qrCode: "QR-AST-001" },
+    { id: "ast-2", tag: "AST-002", name: "Dell UltraSharp 32\" 4K", categoryId: "cat-2", status: "allocated", location: "New York Office", departmentId: "dept-4", serial: "CN-0J1XY9-74261", qrCode: "QR-AST-002" },
+    { id: "ast-3", tag: "AST-003", name: "iPhone 15 Pro", categoryId: "cat-3", status: "maintenance", location: "IT Storage", departmentId: "dept-1", serial: "F4G3H2J1K0", qrCode: "QR-AST-003" },
+    { id: "ast-4", tag: "AST-004", name: "Herman Miller Aeron", categoryId: "cat-4", status: "available", location: "Storage Room A", departmentId: "dept-3", serial: "HM-99821", qrCode: "QR-AST-004" },
+    { id: "ast-5", tag: "AST-005", name: "ThinkPad X1 Carbon Gen 11", categoryId: "cat-1", status: "available", location: "London Office", departmentId: "dept-1", serial: "PF-234ABC", qrCode: "QR-AST-005" },
+    { id: "ast-6", tag: "AST-006", name: "MacBook Air M2", categoryId: "cat-1", status: "allocated", location: "Remote", departmentId: "dept-2", serial: "C02G345YR7M", qrCode: "QR-AST-006" },
+  ],
+  allocations: [
+    { id: "alloc-1", assetId: "ast-1", employeeId: "emp-1", active: true, startedAt: "2023-10-15T09:00:00Z" },
+    { id: "alloc-2", assetId: "ast-2", employeeId: "emp-1", active: true, startedAt: "2023-10-15T09:05:00Z" },
+    { id: "alloc-3", assetId: "ast-6", employeeId: "emp-3", active: true, startedAt: "2023-11-01T10:30:00Z" },
+  ],
+  allocationHistory: [
+    { id: "hist-1", assetId: "ast-1", occurredAt: "2023-10-15T09:00:00Z", label: "Allocated to Alice Johnson - Frontend" },
+    { id: "hist-2", assetId: "ast-2", occurredAt: "2023-10-15T09:05:00Z", label: "Allocated to Alice Johnson - Frontend" },
+    { id: "hist-3", assetId: "ast-6", occurredAt: "2023-11-01T10:30:00Z", label: "Allocated to Charlie Davis - Design" },
+    { id: "hist-4", assetId: "ast-3", occurredAt: "2024-01-10T14:00:00Z", label: "Returned by Bob Smith - condition: screen cracked" },
+  ],
+  resources: [
+    { id: "res-1", name: "Conference Room A (Boardroom)", type: "room", capacity: 12, location: "Floor 4, West Wing", status: "active" },
+    { id: "res-2", name: "Huddle Room 1", type: "room", capacity: 4, location: "Floor 3, East Wing", status: "active" },
+    { id: "res-3", name: "4K Laser Projector", type: "equipment", capacity: 1, location: "IT Cabinet 2", status: "active" },
+    { id: "res-4", name: "Company Vehicle - Toyota Prius", type: "vehicle", capacity: 5, location: "Basement Parking B2", status: "maintenance" },
+  ],
+  bookings: [
+    { id: "book-1", resourceId: "res-1", employeeId: "emp-5", date: new Date().toISOString().split('T')[0], startHour: 10, startMinute: 0, endHour: 11, endMinute: 30, purpose: "Weekly Engineering Sync", status: "confirmed" },
+    { id: "book-2", resourceId: "res-3", employeeId: "emp-3", date: new Date().toISOString().split('T')[0], startHour: 14, startMinute: 0, endHour: 15, endMinute: 0, purpose: "Design Review Presentation", status: "confirmed" },
+  ],
+  maintenanceRequests: [
+    { id: "maint-1", assetId: "ast-3", description: "Screen cracked and battery draining fast", status: "approved", technicianName: "Mike Fixit", createdAt: "2024-01-11T09:30:00Z" },
+    { id: "maint-2", assetId: "ast-4", description: "Armrest is loose", status: "pending", technicianName: "", createdAt: new Date().toISOString() },
+  ],
+  auditCycles: [
+    { id: "audit-1", name: "Q1 2024 Inventory Check", status: "open", createdAt: "2024-03-01T08:00:00Z" },
+    { id: "audit-2", name: "2023 EOY Audit", status: "closed", createdAt: "2023-12-01T08:00:00Z", closedAt: "2023-12-15T17:00:00Z" },
+  ],
+  auditChecklist: [
+    { id: "chk-1", auditCycleId: "audit-1", assetId: "ast-1", expectedLocation: "New York Office", verification: "verified" },
+    { id: "chk-2", auditCycleId: "audit-1", assetId: "ast-2", expectedLocation: "New York Office", verification: "pending" },
+    { id: "chk-3", auditCycleId: "audit-1", assetId: "ast-5", expectedLocation: "London Office", verification: "missing" },
+  ],
+  discrepancyReports: [
+    { id: "disc-1", auditCycleId: "audit-1", generatedAt: new Date().toISOString(), flaggedCount: 1, summary: "1 assets flagged - discrepancy report generated automatically" },
+  ],
 };
 
 function normalizeWorkspace(parsed: Partial<WorkspaceData>): WorkspaceData {

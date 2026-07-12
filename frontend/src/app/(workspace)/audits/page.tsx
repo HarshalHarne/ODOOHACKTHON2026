@@ -1,10 +1,5 @@
-import WorkspaceSectionPage from "@/components/dashboard/WorkspaceSectionPage";
+import AuditWorkspace from "@/components/audits/AuditWorkspace";
 
 export default function AuditsPage() {
-  return (
-    <WorkspaceSectionPage
-      title="Audit"
-      description="Plan audits and reconcile asset records across the organization."
-    />
-  );
+  return <AuditWorkspace />;
 }

@@ -479,3 +479,34 @@ input {
     min-width: 7.5rem;
   }
 }
+
+@media print {
+  [data-slot="sidebar"],
+  [data-sidebar="sidebar"],
+  .workspace-topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .workspace-shell {
+    background: white !important;
+  }
+
+  .reports-dashboard .workspace-card,
+  .reports-dashboard .screen-panel {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  .reports-dashboard .screen-panel {
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    background: white !important;
+  }
+
+  .reports-dashboard .text-white,
+  .reports-dashboard .text-slate-300,
+  .reports-dashboard .text-slate-400 {
+    color: #0f172a !important;
+  }
+}

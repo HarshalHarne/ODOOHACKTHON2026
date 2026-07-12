@@ -76,3 +76,67 @@ export function getMaintenanceActionLabel(
       return null;
   }
 }
+
+export function downloadCsvFile(
+  filename: string,
+  headers: string[],
+  rows: string[][]
+) {
+  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+  const content = [
+    headers.map(escape).join(","),
+    ...rows.map((row) => row.map(escape).join(",")),
+  ].join("\n");
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+export function formatNotificationTimestamp(timestamp: string) {
+  return new Date(timestamp).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function getNotificationDayGroup(
+  timestamp: string
+): "today" | "yesterday" | "earlier" {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const notificationDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
+
+  if (notificationDay.getTime() === today.getTime()) {
+    return "today";
+  }
+
+  if (notificationDay.getTime() === yesterday.getTime()) {
+    return "yesterday";
+  }
+
+  return "earlier";
+}
+
+export function deterministicHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
+}

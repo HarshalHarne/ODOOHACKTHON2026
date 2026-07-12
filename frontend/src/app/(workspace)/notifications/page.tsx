@@ -1,10 +1,5 @@
-import WorkspaceSectionPage from "@/components/dashboard/WorkspaceSectionPage";
+import NotificationCenter from "@/components/notifications/NotificationCenter";
 
 export default function NotificationsPage() {
-  return (
-    <WorkspaceSectionPage
-      title="Notifications"
-      description="View alerts for allocations, maintenance, bookings, and returns."
-    />
-  );
+  return <NotificationCenter />;
 }

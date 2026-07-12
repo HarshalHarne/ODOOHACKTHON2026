@@ -2,6 +2,35 @@
 
 Go REST API for AssetFlow, built with chi/v5, pgx/v5, Goose, and sqlc.
 
+## Current API surface
+
+### Health
+- GET /health
+
+### Departments
+- POST /api/v1/departments
+- GET /api/v1/departments
+- GET /api/v1/departments/{id}
+- PATCH /api/v1/departments/{id}
+- PATCH /api/v1/departments/{id}/status
+
+All department routes require admin authorization.
+
+## Development
+
+```bash
+cd backend
+export DATABASE_URL="postgresql://user:pass@localhost:5432/assetflow"
+go run ./cmd/api
+```
+
+## Tests
+
+```bash
+cd backend
+go test ./...
+```
+
 ---
 
 ## Architecture
